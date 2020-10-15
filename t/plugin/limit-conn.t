@@ -956,3 +956,216 @@ GET /test_concurrency
 200
 --- no_error_log
 [error]
+
+
+
+=== TEST 25: create consumer and bind key-auth plugin
+--- config 
+    location /t {
+        content_by_lua_block {
+            local t = require("lib.test_admin").test
+            local code, body = t('/apisix/admin/consumers',
+                ngx.HTTP_PUT,
+                [[{
+                    "username": "consumer_jack",
+                    "plugins": {
+                        "key-auth": {
+                            "key": "auth-jack"
+                        }
+                    }
+                }]]
+                )
+            if code >= 300 then
+                ngx.status = code
+            end
+            ngx.say(body)
+        }
+    }
+--- request
+GET /t
+--- response_body
+passed
+--- no_error_log
+[error]
+
+
+
+=== TEST 26: create route and consumer_name is consumer_jack
+--- config
+    location /t {
+        content_by_lua_block {
+            local t = require("lib.test_admin").test
+            local code, body = t('/apisix/admin/routes/1',
+                 ngx.HTTP_PUT,
+                 [[{
+                        "plugins": {
+                            "key-auth": {},
+                            "limit-conn": {
+                                "conn": 100,
+                                "burst": 50,
+                                "default_conn_delay": 0.1,
+                                "rejected_code": 503,
+                                "key": "consumer_name"
+                            }
+                        },
+                        "upstream": {
+                            "nodes": {
+                                "127.0.0.1:1980": 1
+                            },
+                            "type": "roundrobin"
+                        },
+                        "uri": "/limit_conn"
+                }]]
+                )
+
+            if code >= 300 then
+                ngx.status = code
+            end
+            ngx.say(body)
+        }
+    }
+--- request
+GET /t
+--- response_body
+passed
+--- no_error_log
+[error]
+
+
+
+=== TEST 27: not exceeding the burst
+--- config
+location /access_root_dir {
+    content_by_lua_block {
+        local port = ngx.var.server_port
+        local httpc = require "resty.http"
+        local hc = httpc:new()
+
+        local res, err = hc:request_uri('http://127.0.0.1:' .. port .. '/limit_conn', {
+            headers = {["apikey"] = "auth-jack"}
+        })
+        if res then
+            ngx.exit(res.status)
+        end
+    }
+}
+
+location /test_concurrency {
+    content_by_lua_block {
+        local reqs = {}
+        for i = 1, 10 do
+            reqs[i] = { "/access_root_dir" }
+        end
+        local resps = { ngx.location.capture_multi(reqs) }
+        for i, resp in ipairs(resps) do
+            ngx.say(resp.status)
+        end
+    }
+}
+--- request
+GET /test_concurrency
+--- timeout: 10s
+--- response_body
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+--- no_error_log
+[error]
+
+
+
+=== TEST 28: update plugin
+--- config
+    location /t {
+        content_by_lua_block {
+            local t = require("lib.test_admin").test
+            local code, body = t('/apisix/admin/routes/1',
+                 ngx.HTTP_PUT,
+                 [[{
+                        "plugins": {
+                            "key-auth": {},
+                            "limit-conn": {
+                                "conn": 2,
+                                "burst": 1,
+                                "default_conn_delay": 0.1,
+                                "rejected_code": 503,
+                                "key": "consumer_name"
+                            }
+                        },
+                        "upstream": {
+                            "nodes": {
+                                "127.0.0.1:1980": 1
+                            },
+                            "type": "roundrobin"
+                        },
+                        "uri": "/limit_conn"
+                }]]
+                )
+
+            if code >= 300 then
+                ngx.status = code
+            end
+            ngx.say(body)
+        }
+    }
+--- request
+GET /t
+--- response_body
+passed
+--- no_error_log
+[error]
+
+
+
+=== TEST 29: exceeding the burst
+--- config
+location /access_root_dir {
+    content_by_lua_block {
+        local port = ngx.var.server_port
+        local httpc = require "resty.http"
+        local hc = httpc:new()
+
+        local res, err = hc:request_uri('http://127.0.0.1:' .. port .. '/limit_conn', {
+            headers = {["apikey"] = "auth-jack"}
+        })
+        if res then
+            ngx.exit(res.status)
+        end
+    }
+}
+
+location /test_concurrency {
+    content_by_lua_block {
+        local reqs = {}
+        for i = 1, 10 do
+            reqs[i] = { "/access_root_dir" }
+        end
+        local resps = { ngx.location.capture_multi(reqs) }
+        for i, resp in ipairs(resps) do
+            ngx.say(resp.status)
+        end
+    }
+}
+--- request
+GET /test_concurrency
+--- timeout: 10s
+--- response_body
+200
+200
+200
+503
+503
+503
+503
+503
+503
+503
+--- no_error_log
+[error]
