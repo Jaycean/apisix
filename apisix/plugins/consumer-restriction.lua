@@ -19,27 +19,31 @@ local core      = require("apisix.core")
 
 local schema = {
     type = "object",
-    properties = {
-        type = {
-            type = "string",
-            enum = {"consumer_name", "service_id"},
-            default = "consumer_name"
-        },
-        whitelist = {
-            type = "array",
-            items = {type = "string"},
-            minItems = 1
-        },
-        blacklist = {
-            type = "array",
-            items = {type = "string"},
-            minItems = 1
-        },
-        rejected_code = {type = "integer", minimum = 200, default = 403}
-    },
     oneOf = {
-        {required = {"whitelist"}},
-        {required = {"blacklist"}}
+        {
+            title = "blacklist",
+            properties = {
+                blacklist = {
+                    type = "array",
+                    minItems = 1,
+                    items = {type = "string"}, 
+                },
+                rejected_code = {type = "integer", minimum = 200, default = 403}
+            },
+            required = {"blacklist"},
+        },
+        {
+            title = "whitelist",
+            properties = {
+                whitelist = {
+                    type = "array",
+                    minItems = 1,
+                    items = {type = "string"},                
+	       },
+               rejected_code = {type = "integer", minimum = 200, default = 403}
+            },
+            required = {"whitelist"},
+        }
     }
 }
 
@@ -90,20 +94,20 @@ function _M.access(conf, ctx)
     core.log.info("value: ", value)
 
     local block = false
-    if conf.blacklist and #conf.blacklist > 0 then
-        if is_include(value, conf.blacklist) then
+    if conf.properties.blacklist and #conf.properties.blacklist > 0 then
+        if is_include(value, conf.properties.blacklist) then
             block = true
         end
     end
 
-    if conf.whitelist and #conf.whitelist > 0 then
-        if not is_include(value, conf.whitelist) then
+    if conf.properties.whitelist and #conf.properties.whitelist > 0 then
+        if not is_include(value, conf.properties.whitelist) then
             block = true
         end
     end
 
     if block then
-        return conf.rejected_code, { message = "The " .. conf.type .. " is forbidden." }
+        return conf.properties.rejected_code, { message = "The " .. conf.type .. " is forbidden." }
     end
 end
 
