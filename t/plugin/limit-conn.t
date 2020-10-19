@@ -1076,8 +1076,9 @@ GET /test_concurrency
 200
 200
 200
---- no_error_log
-[error]
+--- error_log
+limit key: consumer_jackroute
+
 
 
 
@@ -1167,8 +1168,8 @@ GET /test_concurrency
 503
 503
 503
---- no_error_log
-[error]
+--- error_log
+limit key: consumer_jackroute
 
 
 
@@ -1198,30 +1199,3 @@ done
 --- no_error_log
 [error]
 
-
-
-=== TEST 31: print the value of the limit key and check it
---- config
-    location /t {
-        content_by_lua_block {
-            local plugin = require("apisix.plugins.limit-conn")
-            local ok, err = plugin.check_schema({
-                conn = 1, 
-                burst = 0, 
-                default_conn_delay = 0.1, 
-                rejected_code = 503, 
-                key = 'consumer_name'
-                    })
-            if not ok then
-                ngx.say(err)
-            end
-
-            ngx.say("done")
-        }
-    }
---- request
-GET /t
---- response_body
-done
---- no_error_log
-[error]
