@@ -990,7 +990,7 @@ passed
 
 
 
-=== TEST 26: create route and consumer_name is consumer_jack
+=== TEST 26: create route and enable plugin 'key-auth' 
 --- config
     location /t {
         content_by_lua_block {
@@ -1081,7 +1081,7 @@ GET /test_concurrency
 
 
 
-=== TEST 28: update plugin
+=== TEST 28: update plugin "limit-conn" configuration "conn" and "burst"
 --- config
     location /t {
         content_by_lua_block {
